@@ -1,0 +1,63 @@
+library(shiny)
+library(ggplot2)
+library(readr)
+
+
+
+dui_data <- read.csv("https://uwmadison.box.com/shared/static/8mt67gf9bprnazjnopx46ahth7t7q8rf.csv")
+
+ui <- fluidPage(
+  titlePanel("Fraction of DUI by Population Grouped by State based on Sunday Sales Regulations"),
+  fluidRow(
+    column(12, p("This app allows you to pick the Sunday Sales Law you are interested in, and a graph will generate with the states who have that law graphed based on their DUI/Population rate. To get the information of a specific state, click on the bar of that state and a table with those statistics will generate."))
+  ),
+  sidebarLayout(
+    sidebarPanel(
+      selectInput("sunday_sales", 
+                  "Select Sunday Sales Regulation:", 
+                  choices = c("Permitted", "Local", "Prohibited", "Restricted"),
+                  selected = "Permitted")
+    ),
+    mainPanel(
+      plotOutput("bar_plot", click = "plot_click"), 
+      tableOutput("df")
+    )
+  )
+)
+
+
+server <- function(input, output) {
+  filtered <- reactive({
+    dui_data[dui_data$Sunday.Sales == input$sunday_sales, ]
+  })
+  output$bar_plot <- renderPlot({
+    ggplot(filtered(), aes(x = State, y = DUI / Population)) +
+      geom_bar(stat = "identity", fill = "pink") +
+      labs(title = paste("DUI by State (", input$sunday_sales, ")", sep = ""),
+           x = "State", 
+           y = "Fraction of DUI Cases by Population") +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1))  
+  })
+  
+  selected_state <- reactiveVal(NULL)
+  
+  observeEvent(input$plot_click, {
+    df <- input$plot_click
+    
+    if (!is.null(df)) {
+      clicked_state <- round(df$x)
+      if (clicked_state > 0 && clicked_state <= nrow(filtered())) {
+        dui_data <- filtered()[clicked_state, ]
+        selected_state(dui_data)
+      }
+    }
+  })
+  
+  
+  output$df <- renderTable({
+    selected_state()  
+  })
+}
+
+
+shinyApp(ui,server)
